@@ -1,0 +1,150 @@
+---
+title: "220-week-03"
+author: "Bob Rudis"
+date: "1/29/2017"
+output:
+  html_document:
+    toc: true
+    code_download: true
+    theme: simplex
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+```{r libraries_we_need}
+library(knitr)
+library(readxl)
+library(tidyverse)
+```
+
+## Exploring Pipeline Incidents
+
+Using data from <http://www.phmsa.dot.gov/pipeline/library/data-stats/flagged-data-files>
+
+```{r get_data}
+URL <- "http://www.phmsa.dot.gov/staticfiles/PHMSA/DownloadableFiles/Pipeline/PHMSA_Pipeline_Safety_Flagged_Incidents.zip"
+fil <- "data/pipelines.zip"
+if (!file.exists(fil)) {
+  download.file(URL, fil)
+  unzip(fil, exdir="data")
+}
+data_file <- "data/hl2010toPresent.xlsx"
+```
+
+Read in the data:
+
+```{r load_data}
+pipelines <- read_excel(data_file, "hl2010toPresent", col_names=TRUE)
+```
+
+```{r eda, eval=FALSE, echo=FALSE}
+# take a look at the strucure
+glimpse(pipelines)
+```
+
+### Significant incidents
+
+We want to identify if record meets the significant criteria or not:
+
+- fatality
+- injury
+- fire
+- explosion
+- total property damage $50K or more in 1984 dollars
+- non-HVL loss >= 50bbls
+- HVL loss >= 5bbls
+
+We'll do this by year.
+
+```{r signigicant_incidents}
+count(pipelines, IYEAR, SIGNIFICANT) %>% 
+  arrange(IYEAR) %>% 
+  spread(SIGNIFICANT, n) %>% 
+  rename(`Incident year`=IYEAR,
+         `Not Significant`=NO, 
+         `Significant`=YES) -> sig_ind_by_year
+```
+
+`r kable(sig_ind_by_year)`
+
+```{r sig_ind_plot}
+gather(sig_ind_by_year, is_sig, ct, -`Incident year`) %>% 
+  ggplot(aes(`Incident year`, ct, group=is_sig)) +
+  geom_line(aes(color=is_sig)) +
+  labs(title="Significant pipeline incidents by year (2010-2016)") +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r sig_ind_plot_diff, fig.height=2}
+mutate(sig_ind_by_year, diff=`Not Significant`- `Significant`) %>%
+  ggplot(aes(`Incident year`, diff)) +
+  geom_segment(aes(xend=`Incident year`, yend=0)) +
+  labs(title="[Difference] Significant pipeline incidents by year (2010-2016)") +
+  theme_bw() +
+  theme(panel.grid.major.x=element_blank()) +
+  theme(panel.grid.minor.x=element_blank())
+```
+
+### How about Serious (had a fatality or injury)?
+
+```{r serious}
+count(pipelines, IYEAR, SERIOUS) %>% 
+  spread(SERIOUS, n) %>% 
+  kable()
+```
+
+### How about Shutdowns?
+
+```{r shutdown}
+count(pipelines, IYEAR, SHUTDOWN_DUE_ACCIDENT_IND, sort=TRUE) %>%   filter(!is.na(SHUTDOWN_DUE_ACCIDENT_IND)) %>% 
+  spread(SHUTDOWN_DUE_ACCIDENT_IND, n) %>% 
+  kable()
+```
+
+### How about Spills?
+
+```{r spills}
+count(pipelines, IYEAR, SPILL_TYPE_CATEGORY, sort=TRUE) %>% 
+  spread(SPILL_TYPE_CATEGORY, n) %>% 
+  kable()
+```
+
+## Where does this stuff happen?
+
+### By how serious the incident was (2013)
+
+```{r where_2013}
+filter(pipelines, IYEAR=="2013") %>% 
+  ggplot(aes(LOCATION_LONGITUDE, LOCATION_LATITUDE)) +
+  geom_point(aes(color=SERIOUS), size=0.75, alpha=1/2, shape=21) +
+  coord_map("polyconic", xlim=c(-124.8, -66.9), ylim=c(24.3, 49.4)) +
+  ggthemes::theme_map()
+```
+
+### By how Significant the incident was (2014)
+
+```{r where_2014}
+filter(pipelines, IYEAR=="2014") %>% 
+  ggplot(aes(LOCATION_LONGITUDE, LOCATION_LATITUDE)) +
+  geom_point(aes(color=SIGNIFICANT), size=0.75, alpha=1/2, shape=21) +
+  coord_map("polyconic", xlim=c(-124.8, -66.9), ylim=c(24.3, 49.4)) +
+  ggthemes::theme_map()
+```
+
+### Cumulative — 2010:2016 (Significant)
+
+```{r where_cumulative}
+pipelines %>% 
+  ggplot(aes(LOCATION_LONGITUDE, LOCATION_LATITUDE)) +
+  geom_point(aes(color=SIGNIFICANT), size=0.75, alpha=1/2, shape=21) +
+  coord_map("polyconic", xlim=c(-124.8, -66.9), ylim=c(24.3, 49.4)) +
+  ggthemes::theme_map()
+```

@@ -1,0 +1,133 @@
+---
+title: "DATA220G Spring 2017 - Homework 1"
+author: ""
+output:
+  html_document:
+    code_download: true
+    code_folding: show
+    theme: simplex
+    toc_float: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy = FALSE)
+options(htmltools.dir.version = FALSE)
+library(tidyverse)
+#library(hrbrmisc)
+```
+
+## King of the Road
+
+The Bureau of Labor Statistics provides [data](https://www.bls.gov/lau/rdscnp16.htm) on the annual averages of the "employment status of the civilian noninstitutional population" from 1976 to 2015. 
+
+It also provides the [historical U.S. national annual unemployment rate](https://data.bls.gov/timeseries/LNU04000000?years_option=all_years&periods_option=specific_periods&periods=Annual+Data).
+
+You'll need to use both data sources to answer these questions.
+
+One of those files will require some data prep. As a refresher:
+
+- `readLines()` reads in lines from a text file into a character vector, which can also be a URL vs a local file path. i.e.:
+
+```{r eval=FALSE}
+bls_lines <- readLines("http://the.url/youfound/on/that/page/i/linked/to.html")
+```
+
+- `grepl()` can be used to find things in vectors and return `TRUE` or `FALSE` if it does. It also can take [regular expressions](http://www.regular-expressions.info/rlanguage.html) vs plain strings. i.e.:
+
+```{r}
+# state.name is a built-in vector of state names
+head(state.name)
+
+# which states have an "a" in them?
+grepl("a", state.name)
+
+# which states have an "i" in them followed somehwere by an "a"?
+grepl("i.*a", state.name)
+```
+
+- `which()` can tell you which indicies of a vector are `TRUE` or `FALSE`. i.e.:
+
+```{r}
+which(grepl("a", state.name))
+
+
+which(grepl("i.*a", state.name))
+```
+
+- you can index vectors with other vectors. i.e.:
+
+```{r}
+state.name[which(grepl("a", state.name))]
+
+
+state.name[which(grepl("i.*a", state.name))]
+```
+
+- `read.table()` has a `text=` parameter that can read "lines" from a vector. i.e. :
+
+```{r}
+read.table(text=state.name[which(grepl("i.*a", state.name))], stringsAsFactors=FALSE)
+```
+
+- `colnames()` lets you set column names in a `data.frame`. i.e.:
+
+```{r}
+state_df <- read.table(text=state.name[which(grepl("i.*a", state.name))], stringsAsFactors=FALSE)
+
+colnames(state_df) <- c("state")
+
+head(state_df)
+```
+
+- `sub()` / `gsub()` substitute or remove patterns from strings. i.e.
+
+```{r}
+gsub("a$", "", state.name) # removes the ending "a" from any state with one
+```
+
+- `sprintf()` can do fun things with strings and `as.Date()` can convert strings to dates. i.e.:
+
+```{r}
+str(as.Date(sprintf("%s-01-01", 2016)))
+```
+
+- The `readxl` package has a function `read_excel()` that can read in Excel files 
+- The `dplyr` package treats a `data.frame` like a database and there's some [good refresher material](https://cran.rstudio.com/web/packages/dplyr/vignettes/introduction.html) on it.
+- The `ggplot2` package can plot `data.frame`s very nicely by mapping columns to aesthetics:
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+
+unemp <- read_excel("SeriesReport-20170122214311_07b57a.xlsx", skip=10, col_names=TRUE)
+unemp <- mutate(unemp, Year=as.Date(sprintf("%d-01-01", as.integer(Year))))
+
+glimpse(unemp)
+
+ggplot(unemp, aes(Year, Annual)) +
+  geom_point() +
+  scale_x_date(date_breaks="10 years", date_labels="%Y") 
+
+ggplot(unemp, aes(Year, Annual)) +
+  geom_line(aes(group=1)) +
+  scale_x_date(date_breaks="10 years", date_labels="%Y") 
+
+ggplot(unemp, aes(Year, Annual)) +
+  geom_line(aes(group=1)) +
+  geom_point() +
+  scale_x_date(date_breaks="10 years", date_labels="%Y") 
+
+ggplot(unemp, aes(Year, Annual)) +
+  geom_col() +
+  scale_x_date(date_breaks="10 years", date_labels="%Y") 
+```
+
+
+Using the two resources mentioned in the beginning:
+
+- Answer the question: _"Is the current (as close to present as possible with the data) *national* unemployment rate going up, down or holding steady"_. Use code, prose and exploratory data visualizations to make your case. R markdown is going to be a requirement very soon in the course so you might want to get used to using it now. You can see the source for this particular Rmd document in the button in the top right of the document.
+- What was the mean unemployment rate for New Jersey by complete decade?
+- How does the mean unemployment rate for New Jersey by complete decade compare to the mean unemployment rate by complete decade for for Wyoming?
+- Which state(s) — could be ties — have the lowest (most current) unemployment rate?
+- Which states(s) — could be ties — had the lowest unemployment unemployment rate in 2008?
+

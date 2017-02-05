@@ -1,0 +1,1 @@
+"0","read.table(text=state.name[which(grepl(""i.*a"", state.name))], stringsAsFactors=FALSE)"

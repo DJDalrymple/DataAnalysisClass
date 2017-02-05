@@ -1,0 +1,3 @@
+"0","state_df <- read.table(text=state.name[which(grepl(""i.*a"", state.name))], stringsAsFactors=FALSE)"
+"0","colnames(state_df) <- c(""state"")"
+"0","head(state_df)"

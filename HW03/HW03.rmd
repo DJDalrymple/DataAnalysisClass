@@ -1,0 +1,46 @@
+---
+title: "HW03"
+author: "Donna Dalrymple"
+date: "February 5, 2017"
+output: 
+  html_document:
+      toc: true
+      code_download: true
+      theme: simplex
+      toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = FALSE,
+  warning = FALSE)
+```
+```{r libraries_we_need}
+    library(knitr)
+    library(readxl)
+    library(tidyverse)
+ ```
+Using data from <http://www.phmsa.dot.gov/pipeline/library/data-stats/flagged-data-files>
+ 
+ ```{r get_data}
+ URL <- "http://www.phmsa.dot.gov/staticfiles/PHMSA/DownloadableFiles/Pipeline/PHMSA_Pipeline_Safety_Flagged_Incidents.zip"
+ fil <- "data/pipelines.zip"
+ if (!file.exists(fil)) {
+   download.file(URL, fil)
+   unzip(fil, exdir="data")
+ }
+ data_file <- "data/hl2010toPresent.xlsx"
+```
+ 
+ Read in the data:
+ 
+ ```{r load_data}
+ pipelines <- read_excel(data_file, "hl2010toPresent", col_names=TRUE)
+ ```
+ 
+ ```{r eda, eval=FALSE, echo=FALSE}
+ # take a look at the strucure
+ glimpse(pipelines)
+ ```
+ 

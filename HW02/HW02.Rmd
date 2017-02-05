@@ -1,0 +1,106 @@
+---
+title: "HW02"
+author: "Donna Dalrymple"
+date: "January 29, 2017"
+output:
+  html_document:
+    code_download: true
+    code_folding: show
+    theme: simplex
+    toc_float: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(tidy = FALSE,
+                      echo = TRUE,
+                      message = TRUE,
+                      warning = FALSE)
+```
+
+```{r libraries_we_need}
+library(knitr)
+library(readxl)
+library(tidyverse)
+```
+### Exploring Unemployment Rates
+Using data from The Bureau of Labor Statistics provides [data](https://www.bls.gov/lau/rdscnp16.htm) on the annual averages of the "employment status of the civilian noninstitutional population" from 1976 to 2015. 
+
+It also provides the [historical U.S. national annual unemployment rate](https://data.bls.gov/timeseries/LNU04000000?years_option=all_years&periods_option=specific_periods&periods=Annual+Data).
+
+```{r get_data}
+  bls <- read_excel("staadata.xlsx")
+  bls <- bls[8:nrow(bls),c(2,3,10)]
+  colnames(bls)<- c("State","Year", "Rate")
+  bls$Rate <- as.numeric(bls$Rate)
+  unemp <- read_excel("SeriesReport-20170125193553_b114a0.xlsx", skip=10, col_names=TRUE)
+```
+
+### Is the current national unemployment rate going up, down or holding steady?  
+
+The graph of the national unemployment rate shows the trend is heading upwards from just under 5% in 1947 to almost 7% in 2016.
+  
+```{r}
+unemp <- mutate(unemp, Year=as.Date(sprintf("%d-01-01", as.integer(Year))))
+
+ggplot(unemp, aes(Year, Annual)) +
+  geom_line(aes(group=1)) +
+  geom_point() +
+  stat_smooth(method = lm)
+  scale_x_date(date_breaks="10 years", date_labels="%Y") 
+```
+
+### What was the mean unemployment rate for New Jersey by complete decade?
+For the decade 1976-1985, the mean NJ Unemployment rate was 7.71%.
+The following decade 1986-1995, NJ's mean unemployment rate decreased to 5.79%.   
+The mean NJ employment rate dropped further to 4.94% for the decade of 1996-2005.
+FOr the decade of 2006-2015, the rate jump up to 7.20% returning close to the levels of 1976-1985. 
+
+```{r}
+lut <- c("1" = "1976-1985", "2" = "1986-1995", "3" ="1996-2005", "4" = "2006-2015" )  
+
+bls10 <- mutate(bls,Decade=as.character(ntile(Year,4)))
+bls10$Decade <- lut[bls10$Decade]
+
+NJbls10 <- filter(bls10, State == "New Jersey")%>%
+    group_by(Decade)%>%
+    summarise(mean(Rate))
+NJbls10
+
+```
+
+### How does the mean unemployment rate for New Jersey by complete decade compare to the mean unemployment rate by complete decade for for Wyoming?
+
+With the exception of the decade of 1986-1995, the mean unemloyment rate of Wyoming was lower than the unemployment rate of NJ
+
+```{r}
+WYbls10 <- filter(bls10, State == "Wyoming")%>%
+  group_by(Decade)%>%
+  summarise(mean(Rate)) 
+
+NJWYbls10 <- filter(bls10, State == "New Jersey"|State == "Wyoming")%>%
+  group_by(Decade, State)%>%
+  summarise(Mean = mean(Rate))
+
+spread(NJWYbls10, State, Mean)%>%
+  mutate(Difference =  `New Jersey`- Wyoming )
+```
+
+
+### Which state(s) — could be ties — have the lowest (most current) unemployment rate?
+  for 2015, North Dakota had the lowest unemployment rate of 2.7%
+  
+```{r}
+  bls15 <- filter(bls, Year == "2015")
+  bls15[order(bls15$Rate),] %>%
+  head()
+```
+  
+  
+### Which states(s) — could be ties — had the lowest unemployment unemployment rate in 2008?  
+ for 2008, South Dakota and Wyoming tied for the lowest unemployment rate with 3.1% each.
+ 
+```{r}   
+  bls08 <- filter(bls, Year == "2008")
+  bls08[order(bls08$Rate),] %>%
+  head()
+```  
+  

@@ -1,0 +1,4 @@
+"0","ggplot(unemp, aes(Year, Annual)) +"
+"0","  geom_line(aes(group=1)) +"
+"0","  geom_point() +"
+"0","  scale_x_date(date_breaks=""10 years"", date_labels=""%Y"") "
