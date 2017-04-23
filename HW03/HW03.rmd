@@ -1,7 +1,7 @@
 ---
 title: "HW03"
 author: "Donna Dalrymple"
-date: "February 5, 2017"
+date: "February 20, 2017"
 output: 
   html_document:
       toc: true
@@ -12,15 +12,22 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-  echo = TRUE,
+  echo = FALSE,
   message = FALSE,
-  warning = FALSE)
+  warning = FALSE
+  )
 ```
+
 ```{r libraries_we_need}
     library(knitr)
     library(readxl)
+    library(dtables)
+    library(ggplot2)
     library(tidyverse)
  ```
+ 
+## Exploring Pipeline Incidents
+
 Using data from <http://www.phmsa.dot.gov/pipeline/library/data-stats/flagged-data-files>
  
  ```{r get_data}
@@ -44,3 +51,180 @@ Using data from <http://www.phmsa.dot.gov/pipeline/library/data-stats/flagged-da
  glimpse(pipelines)
  ```
  
+### Significant incidents
+
+We want to identify if record meets the significant criteria or not:
+
+- fatality
+- injury
+- fire
+- explosion
+- total property damage $50K or more in 1984 dollars
+- non-HVL loss >= 50bbls
+- HVL loss >= 5bbls
+
+We'll do this by year.
+
+```{r signigicant_incidents}
+count(pipelines, IYEAR, SIGNIFICANT) %>% 
+  arrange(IYEAR) %>% 
+  spread(SIGNIFICANT, n) %>% 
+  rename(`Incident year`=IYEAR,
+         `Not Significant`=NO, 
+         `Significant`=YES) -> sig_ind_by_year
+```
+
+
+`r kable(sig_ind_by_year)`
+
+```{r sig_ind_plot}
+gather(sig_ind_by_year, is_sig, ct, -`Incident year`) %>% 
+  ggplot(aes(`Incident year`, ct, group=is_sig)) +
+  geom_line(aes(color=is_sig)) +
+  labs(title="Significant pipeline incidents by year (2010-2016)") +
+  theme_bw() +
+  theme(legend.position="bottom")
+```
+
+```{r sig_ind_plot_diff, fig.height=2}
+mutate(sig_ind_by_year, diff=`Not Significant`- `Significant`) %>%
+  ggplot(aes(`Incident year`, diff)) +
+  geom_segment(aes(xend=`Incident year`, yend=0)) +
+  labs(title="[Difference] Significant pipeline incidents by year (2010-2016)") +
+  theme_bw() +
+  theme(panel.grid.major.x=element_blank()) +
+  theme(panel.grid.minor.x=element_blank())
+```
+
+### How about Serious Incident?
+  These was either a fatality or an injury
+
+```{r serious}
+count(pipelines, IYEAR, SERIOUS) %>% 
+  spread(SERIOUS, n, fill = 0) %>% 
+  kable()
+```
+
+### How about Shutdowns?
+Did the incident result in a shutdown?
+```{r shutdown}
+count(pipelines, IYEAR, SHUTDOWN_DUE_ACCIDENT_IND, sort=TRUE) %>%   filter(!is.na(SHUTDOWN_DUE_ACCIDENT_IND)) %>% 
+  spread(SHUTDOWN_DUE_ACCIDENT_IND, n, fill = 0) %>% 
+  kable()
+```
+
+### How about Spills?
+Large and small spills by year
+
+```{r spills}
+count(pipelines, IYEAR, SPILL_TYPE_CATEGORY, sort=TRUE) %>% 
+  spread(SPILL_TYPE_CATEGORY, n, fill = TRUE) %>% 
+  kable()
+```
+
+### How about Fatalities and Injuries?
+Fatalities and Injuries by year and type
+
+```{r progress}
+filter(pipelines,FATALITY_IND == "YES"| INJURY_IND == "YES") %>%
+  select(matches("INJURIES|IYEAR|FATAL"),-FATALITY_IND, -INJURY_IND) %>%
+  gather(category, value, - IYEAR)%>%
+  rename(year = IYEAR)%>%
+  count(year,category, wt = value)-> pipelinetrans
+
+separate(pipelinetrans, category, into = c("num","type","fat_or_inj"), sep = "_", fill ="left") %>%
+  select(-num)%>%
+  filter(!is.na(type)) -> fatinj
+
+fatinj %>%
+  group_by(year, type)%>%
+  mutate(tot = sum(n))%>%
+  group_by(year, type, fat_or_inj)%>%
+  mutate(pct = (n/tot))%>%
+  arrange(year, type)%>%
+  kable()
+```
+
+Sorted Injuries 
+by quanity and type
+```{r injuries}
+fatinj %>%
+  group_by(type, year)%>%
+  filter(fat_or_inj == "INJURIES")%>%
+  arrange(fat_or_inj, desc(n))%>%
+kable()
+
+```
+
+
+Sorted Fatalities
+by quanity and type
+```{r fatalities}
+fatinj %>%
+  group_by(type, year)%>%
+  filter(fat_or_inj == "FATALITIES")%>%
+  arrange(type, desc(n))%>%
+kable()
+
+```
+
+
+### How about On or Offshore?
+Onshore vs offshore incidents by year
+
+```{r locale}
+count(pipelines, IYEAR, ON_OFF_SHORE, sort=TRUE) %>% 
+  spread(ON_OFF_SHORE, n, fill = 0) %>% 
+  mutate(tot = OFFSHORE + ONSHORE, off_pct = OFFSHORE/tot, on_pct = ONSHORE/tot  )%>%
+  rename(year = IYEAR)%>%
+  kable()
+```
+
+The table above shows pipeline incidents are more likely onshore.
+
+
+## Exploring Pipe or Weld Failures
+
+Provide a breakdown of incidents by type of pipe or weld failure 
+
+```{r pipe_or_weld_failures}
+
+pipelines %>%
+  select(starts_with("PWF")) -> pwf_extract
+
+cols <- colnames(pwf_extract)
+
+pipelines[,c("REPORT_NUMBER",cols[-c(1:4,43)])]%>%
+gather(indicator, indicator_value, ends_with("IND"), -REPORT_NUMBER)%>%
+gather(year, year_value, ends_with("YEAR"), -REPORT_NUMBER)%>%
+  select(report_num=REPORT_NUMBER, year=year_value, indicator, indicator_value) %>%
+  filter(!is.na(indicator_value))%>%
+  filter(!is.na(year)) %>%
+  select(-indicator_value,pwf_indicator=indicator)%>%
+  mutate(pwf_indicator=tolower(trimws(gsub("(^PWF_|_|IND)"," ",pwf_indicator)))) %>%
+  distinct() -> pwf_df  
+  
+
+count(pwf_df, report_num) 
+
+
+count(pwf_df, year, report_num) %>%
+  ggplot(aes(n)) + geom_histogram()
+
+count(pwf_df, pwf_indicator, sort=TRUE) %>%
+  kable()
+```
+
+## Incidents by Year and Failure Type
+
+```{r year and combined type}
+pipelines %>% 
+  group_by(IYEAR) %>%
+ #filter(ITEM_INVOLVED %in% c("PIPE", "WELD, INCLUDING HEAT-AFFECTED ZONE")) %>%
+  filter(!is.na(FAILURE_TYPE))%>%
+  count(PIPE_TYPE, WELD_SUBTYPE, FAILURE_TYPE,IYEAR) %>%
+  ungroup() %>%
+  arrange(PIPE_TYPE, FAILURE_TYPE) %>%
+  kable()
+
+```
